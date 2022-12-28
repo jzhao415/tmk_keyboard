@@ -28,6 +28,25 @@ volatile uint32_t timer_count = 0;
 
 void timer_init(void)
 {
+#ifdef ATMEGA32
+    TCCR0 = (1<<WGM01);
+#if TIMER_PRESCALER == 1
+    TCCR0 |= (1<<CS00);
+#elif TIMER_PRESCALER == 8
+    TCCR0 |= (1<<CS01);
+#elif TIMER_PRESCALER == 64
+    TCCR0 |= (1<<CS00) | (1<<CS01);
+#elif TIMER_PRESCALER == 256
+    TCCR0 |= (1<<CS02);
+#elif TIMER_PRESCALER == 1024
+    TCCR0 |= (1<<CS00) | (1<<CS02);
+#else
+#   error "Timer prescaler value is NOT vaild."
+#endif
+
+    OCR0 = TIMER_RAW_TOP;
+    TIMSK = (1<<OCIE0); // Allow compare interrupt
+#else
     // Timer0 CTC mode
     TCCR0A = 0x02;
 
@@ -115,7 +134,14 @@ uint32_t timer_elapsed32(uint32_t last)
 }
 
 // excecuted once per 1ms.(excess for just timer count?)
-ISR(TIMER0_COMPA_vect)
+//#ifndef __AVR_ATmega32A__
+#ifndef ATMEGA32
+#define TIMER_INTERRUPT_VECTOR TIMER0_COMPA_vect
+#else
+#define TIMER_INTERRUPT_VECTOR TIMER0_COMP_vect
+#endif
+ISR(TIMER_INTERRUPT_VECTOR, ISR_NOBLOCK)
 {
     timer_count++;
 }
+

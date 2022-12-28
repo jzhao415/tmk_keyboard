@@ -75,6 +75,14 @@ void debug_event(keyevent_t event);
 void debug_record(keyrecord_t record);
 void debug_action(action_t action);
 
+#define type_num(x) type_number(x,0)
+#define type_pnum(x) type_number(x,1)
+
+void process_action_code(uint16_t code, bool pressed);
+void tap_action_code(uint16_t code);
+void type_number(uint8_t num, bool numpad);
+void type_numbers(uint16_t value, bool numpad);
+
 #ifdef __cplusplus
 }
 #endif

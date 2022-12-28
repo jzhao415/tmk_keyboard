@@ -33,6 +33,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "led.h"
 #include "command.h"
 #include "backlight.h"
+#include "hook.h"
 
 #ifdef MOUSEKEY_ENABLE
 #include "mousekey.h"
@@ -49,6 +50,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #   include "usbdrv.h"
 #endif
 
+#ifdef PS2_MOUSE_ENABLE
+extern uint8_t ps2_mouse_enabled;
+#endif
+
 
 static bool command_common(uint8_t code);
 static void command_common_help(void);
@@ -59,7 +64,6 @@ static bool mousekey_console(uint8_t code);
 static void mousekey_console_help(void);
 #endif
 
-static uint8_t numkey2num(uint8_t code);
 static void switch_default_layer(uint8_t layer);
 
 
@@ -80,7 +84,7 @@ bool command_proc(uint8_t code)
             else
                 return (command_console_extra(code) || command_console(code));
             break;
-#ifdef MOUSEKEY_ENABLE
+#if defined(MOUSEKEY_ENABLE) && defined(DEBUG)  //all save 563B
         case MOUSEKEY:
             mousekey_console(code);
             break;
@@ -115,30 +119,30 @@ bool command_console_extra(uint8_t code)
 static void command_common_help(void)
 {
     print("\n\t- Magic -\n"
-          "d:	debug\n"
-          "x:	debug matrix\n"
-          "k:	debug keyboard\n"
-          "m:	debug mouse\n"
-          "v:	version\n"
-          "s:	status\n"
-          "c:	console mode\n"
-          "0-4:	layer0-4(F10-F4)\n"
-          "Paus:	bootloader\n"
+          "d: debug\n"
+          "x: debug matrix\n"
+          "k: debug keyboard\n"
+          "m: debug mouse\n"
+          "v: version\n"
+          "s: status\n"
+          "c: console mode\n"
+          "0-7: layer0-7(F10-F7)\n"
+          "Paus: bootloader\n"
 
 #ifdef KEYBOARD_LOCK_ENABLE
-          "Caps:	Lock\n"
+          "Caps: Lock\n"
 #endif
 
 #ifdef BOOTMAGIC_ENABLE
-          "e:	eeprom\n"
+          "e: eeprom\n"
 #endif
 
 #ifdef NKRO_ENABLE
-          "n:	NKRO\n"
+          "n: NKRO\n"
 #endif
 
 #ifdef SLEEP_LED_ENABLE
-          "z:	sleep LED test\n"
+          "z: sleep LED test\n"
 #endif
     );
 }
@@ -175,6 +179,10 @@ static void print_eeconfig(void)
     print(".enable: "); print_dec(bc.enable); print("\n");
     print(".level: "); print_dec(bc.level); print("\n");
 #endif
+
+#ifdef PS2_MOUSE_ENABLE
+    print("ps2_mouse_enabled: "); print_hex8(ps2_mouse_enabled); print("\n");
+#endif
 }
 #endif
 
@@ -187,6 +195,7 @@ static bool command_common(uint8_t code)
     static bool sleep_led_test = false;
 #endif
     switch (code) {
+#ifndef NO_DEBUG // only need 1 ... 0 and F1 ... F10
 #ifdef SLEEP_LED_ENABLE
         case KC_Z:
             // test breathing sleep LED
@@ -319,6 +328,24 @@ static bool command_common(uint8_t code)
 #ifdef KEYMAP_SECTION_ENABLE
             " KEYMAP_SECTION"
 #endif
+#ifdef KEYMAP_IN_EEPROM_ENABLE
+            " KEYMAP_IN_EEPROM"
+#endif
+#ifdef LEDMAP_ENABLE
+            " LEDMAP"
+#endif
+#ifdef LEDMAP_IN_EEPROM_ENABLE
+            " LEDMAP_IN_EEPROM"
+#endif
+#ifdef BACKLIGHT_ENABLE
+            " BACKLIGHT"
+#endif 
+#ifdef SOFTPWM_LED_ENABLE
+            " SOFTPWM_LED"
+#endif
+#ifdef BREATHING_LED_ENABLE
+            " BREATHING_LED"
+#endif
             " " STR(BOOTLOADER_SIZE) "\n");
 
             print("GCC: " STR(__GNUC__) "." STR(__GNUC_MINOR__) "." STR(__GNUC_PATCHLEVEL__)
@@ -354,28 +381,30 @@ static bool command_common(uint8_t code)
 #   endif
 #endif
             break;
+#endif //no debug
 #ifdef NKRO_ENABLE
         case KC_N:
             clear_keyboard(); //Prevents stuck keys.
-            keyboard_nkro = !keyboard_nkro;
-            if (keyboard_nkro) {
-                print("NKRO: on\n");
-            } else {
-                print("NKRO: off\n");
-            }
+            //if (host_get_driver() == &lufa_driver) { //Only USB supports NKRO.
+                keyboard_nkro = !keyboard_nkro;
+                if (keyboard_nkro) {
+                    print("NKRO: on\n");
+                } else {
+                    print("NKRO: off\n");
+                }
+            //}
+            hook_nkro_change(keyboard_nkro);
             break;
 #endif
-        case KC_ESC:
-        case KC_GRV:
-        case KC_0:
-        case KC_F10:
-            switch_default_layer(0);
-            break;
-        case KC_1 ... KC_9:
-            switch_default_layer((code - KC_1) + 1);
-            break;
-        case KC_F1 ... KC_F9:
-            switch_default_layer((code - KC_F1) + 1);
+        //case KC_ESC:
+        //case KC_GRV:
+        case KC_1 ... KC_0:
+        case KC_F1 ... KC_F10:
+            ;
+            uint8_t target_layer = 0;
+            if (code < KC_8) target_layer = code - KC_1 + 1;
+            else if (code >= KC_F1 && code < KC_F8) target_layer = code - KC_F1 + 1;
+            switch_default_layer(target_layer);
             break;
         default:
             print("?");
@@ -391,15 +420,16 @@ static bool command_common(uint8_t code)
 static void command_console_help(void)
 {
     print("\n\t- Console -\n"
-          "ESC/q:	quit\n"
+          "ESC/q: quit\n"
 #ifdef MOUSEKEY_ENABLE
-          "m:	mousekey\n"
+          "m: mousekey\n"
 #endif
     );
 }
 
 static bool command_console(uint8_t code)
 {
+#ifdef DEBUG
     switch (code) {
         case KC_H:
         case KC_SLASH: /* ? */
@@ -409,7 +439,7 @@ static bool command_console(uint8_t code)
         case KC_ESC:
             command_state = ONESHOT;
             return false;
-#ifdef MOUSEKEY_ENABLE
+#if defined(MOUSEKEY_ENABLE) && defined(DEBUG)
         case KC_M:
             mousekey_console_help();
             print("M> ");
@@ -422,10 +452,11 @@ static bool command_console(uint8_t code)
     }
     print("C> ");
     return true;
+#endif
 }
 
 
-#ifdef MOUSEKEY_ENABLE
+#if defined(MOUSEKEY_ENABLE) && defined(DEBUG)
 /***********************************************************
  * Mousekey console
  ***********************************************************/
@@ -543,20 +574,20 @@ static void mousekey_param_dec(uint8_t param, uint8_t dec)
 static void mousekey_console_help(void)
 {
     print("\n\t- Mousekey -\n"
-          "ESC/q:	quit\n"
-          "1:	delay(*10ms)\n"
-          "2:	interval(ms)\n"
-          "3:	max_speed\n"
-          "4:	time_to_max\n"
-          "5:	wheel_max_speed\n"
-          "6:	wheel_time_to_max\n"
+          "ESC/q: quit\n"
+          "1: delay(*10ms)\n"
+          "2: interval(ms)\n"
+          "3: max_speed\n"
+          "4: time_to_max\n"
+          "5: wheel_max_speed\n"
+          "6: wheel_time_to_max\n"
           "\n"
-          "p:	print values\n"
-          "d:	set defaults\n"
-          "up:	+1\n"
-          "down:	-1\n"
-          "pgup:	+10\n"
-          "pgdown:	-10\n"
+          "p: print values\n"
+          "d: set defaults\n"
+          "up: +1\n"
+          "down: -1\n"
+          "pgup: +10\n"
+          "pgdown: -10\n"
           "\n"
           "speed = delta * max_speed * (repeat / time_to_max)\n");
     xprintf("where delta: cursor=%d, wheel=%d\n" 
@@ -583,13 +614,8 @@ static bool mousekey_console(uint8_t code)
         case KC_P:
             mousekey_param_print();
             break;
-        case KC_1:
-        case KC_2:
-        case KC_3:
-        case KC_4:
-        case KC_5:
-        case KC_6:
-            mousekey_param = numkey2num(code);
+        case KC_1 ... KC_6:
+            mousekey_param = code - KC_1 + 1;
             break;
         case KC_UP:
             mousekey_param_inc(mousekey_param, 1);
@@ -629,26 +655,14 @@ static bool mousekey_console(uint8_t code)
 /***********************************************************
  * Utilities
  ***********************************************************/
-static uint8_t numkey2num(uint8_t code)
-{
-    switch (code) {
-        case KC_1: return 1;
-        case KC_2: return 2;
-        case KC_3: return 3;
-        case KC_4: return 4;
-        case KC_5: return 5;
-        case KC_6: return 6;
-        case KC_7: return 7;
-        case KC_8: return 8;
-        case KC_9: return 9;
-        case KC_0: return 0;
-    }
-    return 0;
-}
 
 static void switch_default_layer(uint8_t layer)
 {
     xprintf("L%d\n", layer);
+#ifdef UNIMAP_ENABLE
+    default_layer_set(1<<layer);
+#else
     default_layer_set(1UL<<layer);
+#endif
     clear_keyboard();
 }

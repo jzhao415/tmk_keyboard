@@ -36,6 +36,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #else
 #include "breathing_led.h"
 #endif
+#include "ledmap.h"
+#include "ledmap_in_eeprom.h"
+#include "keymap_in_eeprom.h"
 #ifdef MOUSEKEY_ENABLE
 #   include "mousekey.h"
 #endif
@@ -49,6 +52,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "adb.h"
 #endif
 
+#ifdef LED_DATA_ENABLE
+uint8_t data_num;
+#ifndef LED_DATA_ADDR
+#define LED_DATA_ADDR 1
+#endif
+#endif
 
 #ifdef MATRIX_HAS_GHOST
 static bool has_ghost_in_row(uint8_t row)
@@ -110,6 +119,7 @@ void keyboard_init(void)
  * Do keyboard routine jobs: scan mantrix, light LEDs, ...
  * This is repeatedly called as fast as possible.
  */
+__attribute__ ((weak))
 void keyboard_task(void)
 {
     static matrix_row_t matrix_prev[MATRIX_ROWS];
@@ -140,17 +150,18 @@ void keyboard_task(void)
             matrix_ghost[r] = matrix_row;
 #endif
             if (debug_matrix) matrix_print();
-            for (uint8_t c = 0; c < MATRIX_COLS; c++) {
-                if (matrix_change & ((matrix_row_t)1<<c)) {
+            matrix_row_t col_mask = 1;
+            for (uint8_t c = 0; c < MATRIX_COLS; c++, col_mask <<= 1) {
+                if (matrix_change & col_mask) {
                     keyevent_t e = (keyevent_t){
                         .key = (keypos_t){ .row = r, .col = c },
-                        .pressed = (matrix_row & ((matrix_row_t)1<<c)),
+                        .pressed = (matrix_row & col_mask),
                         .time = (timer_read() | 1) /* time should not be 0 */
                     };
                     action_exec(e);
                     hook_matrix_change(e);
                     // record a processed key
-                    matrix_prev[r] ^= ((matrix_row_t)1<<c);
+                    matrix_prev[r] ^= col_mask;
 
                     // This can miss stroke when scan matrix takes long like Topre
                     // process a key per task call
@@ -162,7 +173,7 @@ void keyboard_task(void)
     // call with pseudo tick event when no real key event.
     action_exec(TICK);
 
-MATRIX_LOOP_END:
+//MATRIX_LOOP_END:
 
     hook_keyboard_loop();
 
@@ -170,6 +181,7 @@ MATRIX_LOOP_END:
     // mousekey repeat & acceleration
     mousekey_task();
 #endif
+
 
 #ifdef PS2_MOUSE_ENABLE
     ps2_mouse_task();
@@ -183,13 +195,79 @@ MATRIX_LOOP_END:
         adb_mouse_task();
 #endif
 
+#ifdef LED_DATA_ENABLE  /* rough code yet */
+    static bool print_data_led = 0;
+    static uint16_t data_timer;
+    static uint8_t data_led[20];
+    if (print_data_led && timer_elapsed(data_timer) > 75) {
+        print_data_led = 0;
+        parse_led_data(data_led);
+    }
+    // update LED
+    if (led_status != host_keyboard_leds()) {
+        led_status = host_keyboard_leds();
+        static uint8_t step = 0;
+        // When NKRO is enabled, two keyboards appear in windows. So data will be sent twice.
+        static uint8_t data_led_in[4];
+        if (led_status & 0b00010000) {
+            //timer for data_led
+            if (timer_elapsed(data_timer) > 75 ) {
+                step = 0;
+                data_num = 0;
+            } 
+            data_led_in[step] = (led_status & 0b0000011) << (6 - 2 * step);
+            data_timer = timer_read();
+            //xprintf("%d:", step);
+            //pbin(data_led_in[step]);
+            //print("\n");
+            if (++step >= 4) {
+                data_led[data_num] = data_led_in[0] | data_led_in[1] | data_led_in[2] | data_led_in[3];
+                if (data_led[0] == LED_DATA_ADDR && data_num < 2) {
+                    tap_action_code(KC_SLCK);
+                }
+                step = 0;
+                data_num++;
+                print_data_led = 1;
+            }
+        } else {
+            xprintf("LED: %02X\n", led_status);
+            hook_keyboard_leds_change(led_status);
+        }
+   }
+#else 
     // update LED
     if (led_status != host_keyboard_leds()) {
         led_status = host_keyboard_leds();
         if (debug_keyboard) dprintf("LED: %02X\n", led_status);
         hook_keyboard_leds_change(led_status);
     }
+#endif
+
+#ifdef DEBUG_SCAN_SPEED
+    //test scan speed
+    if (1) {
+    //if (USB_DeviceState == DEVICE_STATE_Configured) {
+        static uint16_t temp_timer;
+        static uint16_t temp_i = 0;
+        temp_i++;
+        if (timer_elapsed(temp_timer) >= 1000) {
+            #if 0  //timer test
+            tap_action_code(KC_P3);
+            #endif
+            temp_timer = timer_read();
+            xprintf("%d\n",temp_i);
+            temp_i = 0;
+        }
+    }
+#endif
 }
+
+#ifdef LED_DATA_ENABLE
+__attribute__ ((weak))
+void parse_led_data(uint8_t *data_led)
+{
+}
+#endif
 
 void keyboard_set_leds(uint8_t leds)
 {

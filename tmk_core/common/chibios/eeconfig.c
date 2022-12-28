@@ -500,7 +500,7 @@ void eeprom_write_block(const void *buf, void *addr, uint32_t len)
 	}
 }
 
-#else
+#elif !defined(EEPROM_EMU_STM32F103x8)
 #error EEPROM support not implemented for your chip
 #endif /* chip selection */
 
@@ -545,7 +545,7 @@ void eeconfig_write_default_layer(uint8_t val) { eeprom_write_byte(EECONFIG_DEFA
 uint8_t eeconfig_read_keymap(void)      { return eeprom_read_byte(EECONFIG_KEYMAP); }
 void eeconfig_write_keymap(uint8_t val) { eeprom_write_byte(EECONFIG_KEYMAP, val); }
 
-#ifdef BACKLIGHT_ENABLE
+#if defined(BACKLIGHT_ENABLE) || defined(NOEEP_BACKLIGHT_ENABLE)
 uint8_t eeconfig_read_backlight(void)      { return eeprom_read_byte(EECONFIG_BACKLIGHT); }
 void eeconfig_write_backlight(uint8_t val) { eeprom_write_byte(EECONFIG_BACKLIGHT, val); }
 #endif

@@ -26,7 +26,7 @@ void bootmagic(void)
     uint8_t scan = 100;
     while (scan--) { matrix_scan(); wait_ms(10); }
     print("done.\n");
-
+#ifndef NO_DEFAULT_BOOTMAGIC_SET
     /* bootmagic skip */
     if (bootmagic_scan_key(BOOTMAGIC_KEY_SKIP)) {
         return;
@@ -41,10 +41,12 @@ void bootmagic(void)
     if (bootmagic_scan_key(BOOTMAGIC_KEY_BOOTLOADER)) {
         bootloader_jump();
     }
+#endif
 
     /* user-defined checks */
     hook_bootmagic();
 
+#ifndef NO_DEFAULT_BOOTMAGIC_SET
     /* debug enable */
     debug_config.raw = eeconfig_read_debug();
     if (bootmagic_scan_key(BOOTMAGIC_KEY_DEBUG_ENABLE)) {
@@ -87,11 +89,13 @@ void bootmagic(void)
         keymap_config.nkro = !keymap_config.nkro;
     }
     eeconfig_write_keymap(keymap_config.raw);
+#endif
 
 #ifdef NKRO_ENABLE
     keyboard_nkro = keymap_config.nkro;
 #endif
 
+#ifndef NO_DEFAULT_BOOTMAGIC_SET
     /* default layer */
     uint8_t default_layer = 0;
     if (bootmagic_scan_key(BOOTMAGIC_KEY_DEFAULT_LAYER_0)) { default_layer |= (1<<0); }
@@ -109,6 +113,7 @@ void bootmagic(void)
         default_layer = eeconfig_read_default_layer();
         default_layer_set((uint32_t)default_layer);
     }
+#endif
 }
 
 static bool scan_key(uint16_t code)

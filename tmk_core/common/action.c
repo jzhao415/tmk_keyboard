@@ -29,6 +29,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "hook.h"
 #include "wait.h"
 
+#ifndef NOT_AVR
+#include <avr/wdt.h>
+#endif
+
 #ifdef DEBUG_ACTION
 #include "debug.h"
 #else
@@ -41,7 +45,7 @@ void action_exec(keyevent_t event)
     if (!IS_NOEVENT(event)) {
         dprint("\n---- action_exec: start -----\n");
         dprint("EVENT: "); debug_event(event); dprintln();
-        hook_matrix_change(event);
+        //hook_matrix_change(event); // this makes it run twice
     }
 
     keyrecord_t record = { .event = event };
@@ -64,8 +68,13 @@ void process_action(keyrecord_t *record)
 #endif
 
     if (IS_NOEVENT(event)) { return; }
+    action_t action;
+    if (event.time != 0b10) { //if 0b10，process it as action code
+        action = layer_switch_get_action(event);
+    } else {
+        action.code = *(uint16_t *)&event.key;
+    }
 
-    action_t action = layer_switch_get_action(event);
     dprint("ACTION: "); debug_action(action);
 #ifndef NO_ACTION_LAYER
     dprint(" layer_state: "); layer_debug();
@@ -81,17 +90,22 @@ void process_action(keyrecord_t *record)
                 uint8_t mods = (action.kind.id == ACT_LMODS) ?  action.key.mods :
                                                                 action.key.mods<<4;
                 if (event.pressed) {
+                    block_mods |= (mods & get_mods());
+                    if (mods && action.key.code) has_mods_key = 1;
+                    /*
                      if ((get_mods() & MODS_SHIFT_MASK) && (mods & MODS_SHIFT_MASK)) {
                         block_mods |= MODS_SHIFT_MASK;
                         mods &= ~MODS_SHIFT_MASK;
-                    }
+                    }*/
                     if (mods) {
                         add_weak_mods(mods);
                         send_keyboard_report();
                     }
                     register_code(action.key.code);
                 } else {
-                    block_mods &= ~MODS_SHIFT_MASK;
+                    block_mods &= ~mods;
+                    has_mods_key = 0;
+                    //block_mods &= ~MODS_SHIFT_MASK;
                     unregister_code(action.key.code);
                     if (mods) {
                         del_weak_mods(mods);
@@ -165,6 +179,11 @@ void process_action(keyrecord_t *record)
                                 } else {
                                     dprint("MODS_TAP: Tap: register_code\n");
                                     register_code(action.key.code);
+                                    
+                                    // Delay for MacOS CapsLock
+                                    if (action.key.code == KC_CAPSLOCK) {
+                                        WAIT_MS(100);
+                                    }
                                 }
                             } else {
                                 dprint("MODS_TAP: No tap: add_mods\n");
@@ -188,20 +207,39 @@ void process_action(keyrecord_t *record)
         /* other HID usage */
         case ACT_USAGE:
             switch (action.usage.page) {
+                case PAGE_CONSUMER:
+                    if (event.pressed) {
+                        host_consumer_send(action.usage.code);
+                    } else {
+#ifdef VUSB  //if there is no wait and quickly press and release consumer key, it may stuck.
+                        WAIT_MS(30);
+#endif
+                        host_consumer_send(0);
+                    }
+                    break;
+#ifndef NO_SYSTEMKEY
                 case PAGE_SYSTEM:
                     if (event.pressed) {
+#ifndef NO_ACTION_MACRO
+                        if (action.usage.code >= 0x300 ) {
+                            xprintf("lanuch shortcut %X%X\n", (action.usage.code&0xF0) >> 4, action.usage.code&0xF);
+                            action_macro_play(MACRO( TA(MOD_LGUI|KC_R), W(100), END ));  //Win+R
+                            //Use 0x99 as 0d99. this costs 4byte but more readable.
+                            type_num(action.key.code >> 4);
+#ifdef VUSB  //if 
+                            WAIT_MS(100);
+#endif
+                            type_num(action.key.code & 0xF);
+                            action_macro_play(MACRO( T(ENTER), END ));
+                            break;
+                        } else
+#endif
                         host_system_send(action.usage.code);
                     } else {
                         host_system_send(0);
                     }
                     break;
-                case PAGE_CONSUMER:
-                    if (event.pressed) {
-                        host_consumer_send(action.usage.code);
-                    } else {
-                        host_consumer_send(0);
-                    }
-                    break;
+#endif
             }
             break;
 #endif
@@ -211,15 +249,26 @@ void process_action(keyrecord_t *record)
             if (event.pressed) {
                 mousekey_on(action.key.code);
                 mousekey_send();
+                if (action.key.code < 70) {
+                    rapidfire_key[action.key.code] = true;
+                    rapidfire_mode = true;
+                }
             } else {
                 mousekey_off(action.key.code);
                 mousekey_send();
+                if (action.key.code < 70) {
+                    rapidfire_key[action.key.code] = false;
+                    uint16_t rapidfire_key_code = action.key.code?action.key.code:0x50F4;
+                    process_action_code(rapidfire_key_code, 0);
+                    //rapidfire_mode = false;
+                }
             }
             break;
 #endif
 #ifndef NO_ACTION_LAYER
         case ACT_LAYER:
             if (action.layer_bitop.on == 0) {
+#ifndef NO_DEFAULT_LAYER_SET  //344B
                 /* Default Layer Bitwise Operation */
                 if (!event.pressed) {
                     uint8_t shift = action.layer_bitop.part*4;
@@ -232,6 +281,7 @@ void process_action(keyrecord_t *record)
                         case OP_BIT_SET: default_layer_and(mask); default_layer_or(bits); break;
                     }
                 }
+#endif
             } else {
                 /* Layer Bitwise Operation */
                 if (event.pressed ? (action.layer_bitop.on & ON_PRESS) :
@@ -252,8 +302,17 @@ void process_action(keyrecord_t *record)
         case ACT_LAYER_TAP:
         case ACT_LAYER_TAP_EXT:
             switch (action.layer_tap.code) {
+                case 0xe0 ... 0xef:
+                    /* layer On/Off with modifiers(left only) */
+                    if (event.pressed) {
+                        layer_on(action.layer_tap.val);
+                        register_mods(action.layer_tap.code & 0x0f);
+                    } else {
+                        layer_off(action.layer_tap.val);
+                        unregister_mods(action.layer_tap.code & 0x0f);
+                    }
+            #if 0
                 case 0xc0 ... 0xdf:
-                    /* layer On/Off with modifiers */
                     if (event.pressed) {
                         layer_on(action.layer_tap.val);
                         register_mods((action.layer_tap.code & 0x10) ?
@@ -265,6 +324,7 @@ void process_action(keyrecord_t *record)
                                 (action.layer_tap.code & 0x0f) << 4 :
                                 (action.layer_tap.code & 0x0f));
                     }
+            #endif
                     break;
                 case OP_TAP_TOGGLE:
                     /* tap toggle */
@@ -292,10 +352,16 @@ void process_action(keyrecord_t *record)
                     break;
                 default:
                     /* tap key */
+#ifndef IMPROVED_TAP
                     if (event.pressed) {
                         if (tap_count > 0) {
                             dprint("KEYMAP_TAP_KEY: Tap: register_code\n");
                             register_code(action.layer_tap.code);
+
+                            // Delay for MacOS CapsLock
+                            if (action.layer_tap.code == KC_CAPSLOCK) {
+                                WAIT_MS(100);
+                            }
                         } else {
                             dprint("KEYMAP_TAP_KEY: No tap: On on press\n");
                             layer_on(action.layer_tap.val);
@@ -310,6 +376,41 @@ void process_action(keyrecord_t *record)
                         }
                     }
                     break;
+#else
+                    if (event.pressed) {
+                        if (tap_count >0 && !((action.layer_tap.val & 0x8) && record->tap.interrupted))  {
+                            dprint("KEYMAP_TAP_KEY: Tap: register_code\n");
+                            register_code(action.layer_tap.code);
+
+                            // Delay for MacOS CapsLock
+                            if (action.layer_tap.code == KC_CAPSLOCK) {
+                                WAIT_MS(100);
+                            }
+                        } else {
+                            dprint("KEYMAP_TAP_KEY: No tap: On on press\n");
+                            layer_on(action.layer_tap.val & 0x7);
+                            // LT (P)
+                            if (action.layer_tap.val & 0x10) {
+                                action_t ltp_action = action_for_key(action.layer_tap.val & 0x7, event.key);
+                                process_action_code(ltp_action.code, 1);
+                            }
+                        }
+                    } else {
+                        if (tap_count >0 && !((action.layer_tap.val & 0x8) && record->tap.interrupted))  {
+                            dprint("KEYMAP_TAP_KEY: Tap: unregister_code\n");
+                            unregister_code(action.layer_tap.code);
+                        } else {
+                            dprint("KEYMAP_TAP_KEY: No tap: Off on release\n");
+                            layer_off(action.layer_tap.val & 0x7);
+                            // LT (P)
+                            if (action.layer_tap.val & 0x10) {
+                                action_t ltp_action = action_for_key(action.layer_tap.val & 0x7, event.key);
+                                process_action_code(ltp_action.code, 0);
+                            }
+                        }
+                    }
+                    break;
+#endif
             }
             break;
     #endif
@@ -320,9 +421,13 @@ void process_action(keyrecord_t *record)
             action_macro_play(action_get_macro(record, action.func.id, action.func.opt));
             break;
 #endif
-#ifdef BACKLIGHT_ENABLE
+#if defined(BACKLIGHT_ENABLE) || defined(NOEEP_BACKLIGHT_ENABLE)
         case ACT_BACKLIGHT:
             if (!event.pressed) {
+                /* Backwards compatibility */
+                if (action.backlight.level != 0 && action.backlight.opt != BACKLIGHT_LEVEL) {
+                    action.backlight.opt = action.backlight.level;
+                }
                 switch (action.backlight.opt) {
                     case BACKLIGHT_INCREASE:
                         backlight_increase();
@@ -366,6 +471,14 @@ void register_code(uint8_t code)
     if (code == KC_NO) {
         return;
     }
+#ifndef NO_ACTION_MACRO
+    if (code == KC_KP_00) {
+        action_macro_play(MACRO( T(P0), T(P0),  END ));
+        //test 床前明月光
+        //action_macro_play(MACRO(UC(0x5e8a), UC(0x524d), UC(0x660e), UC(0x6708), UC(0x5149),  END ));
+        return;     
+    }
+#endif
 
 #ifdef LOCKING_SUPPORT_ENABLE
     else if (KC_LOCKING_CAPS == code) {
@@ -431,12 +544,16 @@ void register_code(uint8_t code)
         add_mods(MOD_BIT(code));
         send_keyboard_report();
     }
+#ifndef UNIMAP_ENABLE
+#ifndef NO_SYSTEMKEY
     else if IS_SYSTEM(code) {
         host_system_send(KEYCODE2SYSTEM(code));
     }
+#endif
     else if IS_CONSUMER(code) {
         host_consumer_send(KEYCODE2CONSUMER(code));
     }
+#endif
 }
 
 void unregister_code(uint8_t code)
@@ -489,9 +606,11 @@ void unregister_code(uint8_t code)
         del_mods(MOD_BIT(code));
         send_keyboard_report();
     }
+#ifndef NO_SYSTEMKEY
     else if IS_SYSTEM(code) {
         host_system_send(0);
     }
+#endif
     else if IS_CONSUMER(code) {
         host_consumer_send(0);
     }
@@ -529,15 +648,15 @@ void clear_keyboard_but_mods(void)
     mousekey_send();
 #endif
 #ifdef EXTRAKEY_ENABLE
+#ifndef NO_SYSTEMKEY
     host_system_send(0);
+#endif
     host_consumer_send(0);
 #endif
 }
 
 bool is_tap_key(keyevent_t event)
 {
-    if (IS_NOEVENT(event)) { return false; }
-
     action_t action = layer_switch_get_action(event);
 
     switch (action.kind.id) {
@@ -553,10 +672,10 @@ bool is_tap_key(keyevent_t event)
         case ACT_LAYER_TAP:
         case ACT_LAYER_TAP_EXT:
             switch (action.layer_tap.code) {
-                case 0xc0 ... 0xdf:         // with modifiers
+                case 0xe0 ... 0xef:
+                //case 0xc0 ... 0xdf:         // with modifiers
                     return false;
                 case KC_A ... KC_EXSEL:     // tap key
-                case KC_LCTRL ... KC_RGUI:  // tap key
                 case OP_TAP_TOGGLE:
                     return true;
             }
@@ -569,7 +688,47 @@ bool is_tap_key(keyevent_t event)
     return false;
 }
 
+void process_action_code(uint16_t code, bool pressed) {
+    keyrecord_t keyr;
+    keyr.event =(keyevent_t){
+            .key = (keypos_t){ .row = code >> 8, .col = code},
+            .pressed = pressed,
+            .time = 0b10 /* bit0 should normally be 1 */
+            };
+    process_action(&keyr);
+}
 
+void tap_action_code(uint16_t code) {
+    process_action_code(code, 1);
+    process_action_code(code, 0);
+}
+
+
+void type_number(uint8_t num, bool numpad)
+{
+    if (num == 0) num = 10;   //1->0 0x1E->0x27
+    if (numpad) num += 0x58;
+    else num += 0x1D;
+    tap_action_code(num);
+}
+/*
+void type_pnum(uint8_t pnum)
+{
+    if (pnum == 0) pnum = 10;   //P1->P0 0x59->0x62
+    pnum += 0x58;
+    tap_action_code(pnum);
+}
+*/
+
+void type_numbers(uint16_t value, bool numpad)
+{
+    for (uint16_t i=10000; i>=1; i=i/10) {
+        uint8_t this_num = value/i % 10;
+        if (value/i) {
+            type_number(this_num, numpad);
+        }
+    }
+}
 /*
  * debug print
  */

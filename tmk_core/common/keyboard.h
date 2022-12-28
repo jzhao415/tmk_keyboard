@@ -67,6 +67,8 @@ void keyboard_task(void);
 /* it runs when host LED status is updated */
 void keyboard_set_leds(uint8_t leds);
 
+void parse_led_data(uint8_t *data_led);
+
 #ifdef __cplusplus
 }
 #endif

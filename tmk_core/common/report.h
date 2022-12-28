@@ -40,6 +40,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define AUDIO_MUTE              0x00E2
 #define AUDIO_VOL_UP            0x00E9
 #define AUDIO_VOL_DOWN          0x00EA
+#define BRIGHTNESS_UP           0x006F
+#define BRIGHTNESS_DOWN         0x0070
 #define TRANSPORT_NEXT_TRACK    0x00B5
 #define TRANSPORT_PREV_TRACK    0x00B6
 #define TRANSPORT_STOP          0x00B7
@@ -162,6 +164,8 @@ typedef struct {
     (key == KC_AUDIO_MUTE           ?  AUDIO_MUTE : \
     (key == KC_AUDIO_VOL_UP         ?  AUDIO_VOL_UP : \
     (key == KC_AUDIO_VOL_DOWN       ?  AUDIO_VOL_DOWN : \
+    (key == KC_BRIGHTNESS_UP        ?  BRIGHTNESS_UP : \
+    (key == KC_BRIGHTNESS_DOWN      ?  BRIGHTNESS_DOWN  : \
     (key == KC_MEDIA_NEXT_TRACK     ?  TRANSPORT_NEXT_TRACK : \
     (key == KC_MEDIA_PREV_TRACK     ?  TRANSPORT_PREV_TRACK : \
     (key == KC_MEDIA_FAST_FORWARD   ?  TRANSPORT_FAST_FORWARD : \
@@ -179,7 +183,7 @@ typedef struct {
     (key == KC_WWW_FORWARD          ?  APPCONTROL_FORWARD : \
     (key == KC_WWW_STOP             ?  APPCONTROL_STOP : \
     (key == KC_WWW_REFRESH          ?  APPCONTROL_REFRESH : \
-    (key == KC_WWW_FAVORITES        ?  APPCONTROL_BOOKMARKS : 0)))))))))))))))))))))
+    (key == KC_WWW_FAVORITES        ?  APPCONTROL_BOOKMARKS : 0)))))))))))))))))))))))
 
 #ifdef __cplusplus
 }

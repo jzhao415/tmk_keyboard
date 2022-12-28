@@ -23,6 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define MACRO_NONE      0
 #define MACRO(...)      ({ static const macro_t __m[] PROGMEM = { __VA_ARGS__ }; &__m[0]; })
 #define MACRO_GET(p)    pgm_read_byte(p)
+#define MACRO_GET16(p)    pgm_read_word(p)
 
 typedef uint8_t macro_t;
 
@@ -58,8 +59,7 @@ enum macro_command_id{
     END                 = 0x00,
     KEY_DOWN,
     KEY_UP,
-
-    /* 0x04 - 0x73 (reserved for keycode down) */
+    /* 0x04 - 0x73(F24) (reserved for keycode tap) */
 
     /* 0x74 - 0x83 */
     WAIT                = 0x74,
@@ -67,8 +67,13 @@ enum macro_command_id{
     MOD_STORE,
     MOD_RESTORE,
     MOD_CLEAR,
+    UNICODE,
+    EMOJI               = 0x80,
 
-    /* 0x84 - 0xf3 (reserved for keycode up) */
+    ACTION_DOWN         = 0x81,
+    ACTION_UP,
+    ACTION_TAP,
+    /* 0x84 - 0xf3 (reserved for keycode tap with left shift) */
 
     /* 0xf4 - 0xff */
 };
@@ -83,18 +88,28 @@ enum macro_command_id{
 #define DOWN(key)       KEY_DOWN, (key)
 #define UP(key)         KEY_UP, (key)
 #define TYPE(key)       DOWN(key), UP(key)
-#define WAIT(ms)        WAIT, (ms)
+#define WAIT(ms)        WAIT, (ms/2)
 #define INTERVAL(ms)    INTERVAL, (ms)
 #define STORE()         MOD_STORE
 #define RESTORE()       MOD_RESTORE
 #define CLEAR()         MOD_CLEAR
+#define UNICODE(code)   UNICODE, (code&0xff), (code>>8)
+#define EMOJI(code)     EMOJI,   (code&0xff), (code>>8)
+#define ACTION_DOWN(code)  ACTION_DOWN,((code)&0xff), ((code)>>8)
+#define ACTION_UP(code)    ACTION_UP,  ((code)&0xff), ((code)>>8)
+#define ACTION_TAP(code)   ACTION_TAP, ((code)&0xff), ((code)>>8)
 
 /* key down */
 #define D(key)          DOWN(KC_##key)
+#define DA(code)        ACTION_DOWN(code)
 /* key up */
 #define U(key)          UP(KC_##key)
+#define UA(code)        ACTION_UP(code)
 /* key type */
-#define T(key)          TYPE(KC_##key)
+//#define T(key)          TYPE(KC_##key)
+#define T(key)          KC_##key //Only for key(0x04 - 0x73, A - F24), not mods
+#define TS(key)         KC_##key | 0x80 //Only for key(0x04 - 0x73, A - F24), not mods
+#define TA(code)        ACTION_TAP(code) //Only for key(0x04 - 0x73, A - F24), not mods
 /* wait */
 #define W(ms)           WAIT(ms)
 /* interval */
@@ -105,6 +120,9 @@ enum macro_command_id{
 #define RM()            RESTORE()
 /* clear modifier(s) */
 #define CM()            CLEAR()
+
+#define UC(code)        UNICODE(code)
+#define EM(code)        EMOJI(code)
 
 /* for backward comaptibility */
 #define MD(key)         DOWN(KC_##key)

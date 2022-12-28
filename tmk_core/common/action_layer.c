@@ -15,7 +15,7 @@
 /* 
  * Default Layer State
  */
-uint32_t default_layer_state = 0;
+uint32_t default_layer_state = 1;
 
 static void default_layer_state_set(uint32_t state)
 {
@@ -122,8 +122,9 @@ void layer_debug(void)
 /* return layer effective for key at this time */
 static uint8_t current_layer_for_key(keypos_t key)
 {
-#ifndef NO_ACTION_LAYER
     action_t action = ACTION_TRANSPARENT;
+
+#ifndef NO_ACTION_LAYER
     uint32_t layers = layer_state | default_layer_state;
     /* check top layer first */
     for (int8_t i = 31; i >= 0; i--) {
@@ -148,8 +149,6 @@ static uint8_t layer_pressed[MATRIX_ROWS][MATRIX_COLS] = {};
 #endif
 action_t layer_switch_get_action(keyevent_t event)
 {
-    if (IS_NOEVENT(event)) return (action_t)ACTION_NO;
-
     uint8_t layer = 0;
 #ifndef NO_TRACK_KEY_PRESS
     if (event.pressed) {

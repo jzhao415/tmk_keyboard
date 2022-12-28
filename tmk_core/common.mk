@@ -1,20 +1,25 @@
 COMMON_DIR = common
-SRC +=	$(COMMON_DIR)/host.c \
-	$(COMMON_DIR)/keyboard.c \
-	$(COMMON_DIR)/matrix.c \
-	$(COMMON_DIR)/action.c \
-	$(COMMON_DIR)/action_tapping.c \
-	$(COMMON_DIR)/action_macro.c \
-	$(COMMON_DIR)/action_layer.c \
-	$(COMMON_DIR)/action_util.c \
-	$(COMMON_DIR)/print.c \
-	$(COMMON_DIR)/debug.c \
-	$(COMMON_DIR)/util.c \
-	$(COMMON_DIR)/hook.c \
-	$(COMMON_DIR)/avr/suspend.c \
-	$(COMMON_DIR)/avr/xprintf.S \
-	$(COMMON_DIR)/avr/timer.c \
-	$(COMMON_DIR)/avr/bootloader.c
+SRC +=    $(COMMON_DIR)/host.c \
+    $(COMMON_DIR)/keyboard.c \
+    $(COMMON_DIR)/matrix.c \
+    $(COMMON_DIR)/action.c \
+    $(COMMON_DIR)/action_tapping.c \
+    $(COMMON_DIR)/action_macro.c \
+    $(COMMON_DIR)/action_layer.c \
+    $(COMMON_DIR)/action_util.c \
+    $(COMMON_DIR)/print.c \
+    $(COMMON_DIR)/debug.c \
+    $(COMMON_DIR)/util.c \
+    $(COMMON_DIR)/hook.c \
+    $(COMMON_DIR)/wait.c \
+    $(COMMON_DIR)/avr/xprintf.S \
+    $(COMMON_DIR)/avr/timer.c \
+    $(COMMON_DIR)/avr/bootloader.c
+
+# ATMEGA32A and/or VUSB has no suspend features for now
+ifndef ATMEGA32
+    SRC += $(COMMON_DIR)/avr/suspend.c
+endif
 
 
 # Option modules
@@ -24,10 +29,10 @@ ifeq (yes,$(strip $(UNIMAP_ENABLE)))
     OPT_DEFS += -DACTIONMAP_ENABLE
 else
     ifeq (yes,$(strip $(ACTIONMAP_ENABLE)))
-	SRC += $(COMMON_DIR)/actionmap.c
-	OPT_DEFS += -DACTIONMAP_ENABLE
+    SRC += $(COMMON_DIR)/actionmap.c
+    OPT_DEFS += -DACTIONMAP_ENABLE
     else
-	SRC += $(COMMON_DIR)/keymap.c
+    SRC += $(COMMON_DIR)/keymap.c
     endif
 endif
 
@@ -52,6 +57,10 @@ ifeq (yes,$(strip $(CONSOLE_ENABLE)))
 else
     OPT_DEFS += -DNO_PRINT
     OPT_DEFS += -DNO_DEBUG
+endif
+
+ifeq (yes,$(strip $(LED_DATA_ENABLE)))
+    OPT_DEFS += -DLED_DATA_ENABLE
 endif
 
 ifeq (yes,$(strip $(COMMAND_ENABLE)))
@@ -93,27 +102,57 @@ ifeq (yes,$(strip $(BREATHING_LED_ENABLE)))
 endif
 endif
 ifeq (yes,$(strip $(BACKLIGHT_ENABLE)))
+    SRC += $(COMMON_DIR)/avr/eeconfig.c
     SRC += $(COMMON_DIR)/backlight.c
     OPT_DEFS += -DBACKLIGHT_ENABLE
 endif
-
+ifeq (yes,$(strip $(RGBLIGHT_ENABLE)))
+    OPT_DEFS += -DRGBLIGHT_ENABLE
+endif
+ifeq (yes,$(strip $(LEDMAP_ENABLE)))
+    SRC += $(COMMON_DIR)/ledmap.c
+    OPT_DEFS += -DLEDMAP_ENABLE
+ifeq (yes,$(strip $(LEDMAP_IN_EEPROM_ENABLE)))
+    SRC += $(COMMON_DIR)/ledmap_in_eeprom.c
+    OPT_DEFS += -DLEDMAP_IN_EEPROM_ENABLE
+endif
+endif
 ifeq (yes,$(strip $(KEYMAP_SECTION_ENABLE)))
     OPT_DEFS += -DKEYMAP_SECTION_ENABLE
     ifdef MCU_LDSCRIPT
         EXTRALDFLAGS = -Wl,-L$(TARGET_DIR)/ld,-T$(MCU_LDSCRIPT).x
     else ifeq ($(strip $(MCU)),atmega32u2)
-	EXTRALDFLAGS = -Wl,-L$(TMK_DIR),-Tldscript_keymap_avr35.x
+        ifeq ($(strip $(BL_SIZE)),6K) 
+        EXTRALDFLAGS = -Wl,-L$(TMK_DIR),-Tldscript_keymap_avr35_bl6k.x
+        else 
+        EXTRALDFLAGS = -Wl,-L$(TMK_DIR),-Tldscript_keymap_avr35.x
+        endif
     else ifeq ($(strip $(MCU)),atmega32u4)
       ifeq ($(strip $(BL_SIZE)),1K) 
-    	EXTRALDFLAGS = -Wl,-L$(TMK_DIR),-Tldscript_keymap_avr5_bl1k.x
-      else ifeq ($(strip $(BL_SIZE)),6K) 
-    	EXTRALDFLAGS = -Wl,-L$(TMK_DIR),-Tldscript_keymap_avr5_bl6k.x
+        EXTRALDFLAGS = -Wl,-L$(TMK_DIR),-Tldscript_keymap_avr5_bl1k.x
+        else ifeq ($(strip $(BL_SIZE)),6K) 
+        EXTRALDFLAGS = -Wl,-L$(TMK_DIR),-Tldscript_keymap_avr5_bl6k.x
+        else
+        EXTRALDFLAGS = -Wl,-L$(TMK_DIR),-Tldscript_keymap_avr5.x
+        endif
+    else ifeq ($(strip $(MCU)),at90usb1286)
+      ifeq ($(strip $(BL_SIZE)),6K) 
+        EXTRALDFLAGS = -Wl,-L$(TMK_DIR),-Tldscript_keymap_avr51_bl6k.x
       else
-	EXTRALDFLAGS = -Wl,-L$(TMK_DIR),-Tldscript_keymap_avr5.x
+    EXTRALDFLAGS = -Wl,-L$(TMK_DIR),-Tldscript_keymap_avr5.x
       endif
+    else ifeq ($(strip $(MCU)),atmega32)
+    EXTRALDFLAGS = -Wl,-L$(TMK_DIR),-Tldscript_keymap_avr5.x
+    else ifeq ($(strip $(MCU)),atmega328p)
+    EXTRALDFLAGS = -Wl,-L$(TMK_DIR),-Tldscript_keymap_avr5.x
     else
-	EXTRALDFLAGS = $(error no ldscript for keymap section)
+    EXTRALDFLAGS = $(error no ldscript for keymap section)
     endif
+endif
+
+# When bootmagic is disabled. This is needed for rgblight as it uses eeconfig.
+ifeq (yes,$(strip $(RGBLIGHT_ENABLE)))
+    SRC += $(COMMON_DIR)/avr/eeconfig.c
 endif
 
 # Version string

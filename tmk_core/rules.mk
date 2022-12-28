@@ -62,7 +62,7 @@ FORMAT = ihex
 # Object files directory
 #     To put object files in current directory, use a dot (.), do NOT make
 #     this an empty or blank macro!
-OBJDIR = obj_$(TARGET)
+OBJDIR = .obj_$(TARGET)
 
 
 # Optimization level, can be [0, 1, 2, 3, s]. 
@@ -118,6 +118,17 @@ CPPDEFS += $(OPT_DEFS)
 #  -Wall...:     warning level
 #  -Wa,...:      tell GCC to pass this to the assembler.
 #    -adhlns...: create assembler listing
+
+#reduce the size 
+ifeq (yes,$(strip $(LTO_ENABLE)))
+    ifeq ($(PLATFORM),CHIBIOS)
+        $(info Enabling LTO on ChibiOS-targeting boards is known to have a high likelihood of failure.)
+        $(info If unsure, set LTO_ENABLE = no.)
+    endif
+    CDEFS += -flto
+    CDEFS += -DLTO_ENABLE
+endif
+
 CFLAGS = -g$(DEBUG)
 CFLAGS += $(CDEFS)
 CFLAGS += -O$(OPT)
@@ -131,6 +142,8 @@ CFLAGS += -fshort-enums
 CFLAGS += -fno-strict-aliasing
 CFLAGS += -Wall
 CFLAGS += -Wstrict-prototypes
+CFLAGS += -Wno-missing-braces
+CFLAGS += -Wmissing-field-initializers
 #CFLAGS += -mshort-calls
 #CFLAGS += -fno-unit-at-a-time
 #CFLAGS += -Wundef
@@ -424,6 +437,9 @@ gccversion :
 
 
 # Program the device.  
+msd: $(TARGET).hex
+	@cmd.exe /c zzt_z-auto_flash.bat
+	
 program: $(TARGET).hex $(TARGET).eep
 	$(PROGRAM_CMD)
 
@@ -565,7 +581,7 @@ extcoff: $(TARGET).elf
 %.elf: $(OBJ)
 	@echo
 	@echo $(MSG_LINKING) $@
-	$(CC) $(ALL_CFLAGS) $^ --output $@ $(LDFLAGS)
+	@$(CC) $(ALL_CFLAGS) $^ --output $@ $(LDFLAGS)
 
 
 # Compile: create object files from C source files.
@@ -573,7 +589,7 @@ $(OBJDIR)/%.o : %.c
 	@echo
 	mkdir -p $(@D)
 	@echo $(MSG_COMPILING) $<
-	$(CC) -c $(ALL_CFLAGS) $< -o $@ 
+	@$(CC) -c $(ALL_CFLAGS) $< -o $@ 
 
 
 # Compile: create object files from C++ source files.
@@ -612,7 +628,7 @@ clean: begin clean_list end
 
 clean_list :
 	@echo
-	$(REMOVE) $(TARGET).hex
+	#$(REMOVE) $(TARGET).hex
 	$(REMOVE) $(TARGET).eep
 	$(REMOVE) $(TARGET).cof
 	$(REMOVE) $(TARGET).elf

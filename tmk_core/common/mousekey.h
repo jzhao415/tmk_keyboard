@@ -22,33 +22,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "host.h"
 
 
-/* max value on report descriptor */
-#define MOUSEKEY_MOVE_MAX       127
-#define MOUSEKEY_WHEEL_MAX      127
-
-#ifndef MOUSEKEY_MOVE_DELTA
-#define MOUSEKEY_MOVE_DELTA     5
-#endif
-#ifndef MOUSEKEY_WHEEL_DELTA
-#define MOUSEKEY_WHEEL_DELTA    1
-#endif
-#ifndef MOUSEKEY_DELAY
-#define MOUSEKEY_DELAY 300
-#endif
-#ifndef MOUSEKEY_INTERVAL
-#define MOUSEKEY_INTERVAL 50
-#endif
-#ifndef MOUSEKEY_MAX_SPEED
-#define MOUSEKEY_MAX_SPEED 10
-#endif
-#ifndef MOUSEKEY_TIME_TO_MAX
-#define MOUSEKEY_TIME_TO_MAX 20
-#endif
-#ifndef MOUSEKEY_WHEEL_MAX_SPEED
-#define MOUSEKEY_WHEEL_MAX_SPEED 8
-#endif
-#ifndef MOUSEKEY_WHEEL_TIME_TO_MAX
-#define MOUSEKEY_WHEEL_TIME_TO_MAX 40
+#define MOUSEKEY_MOVE_REPEAT_MAX 20 // 4x
+#ifndef MOUSEKEY_REPEAT_UPDATE_INTERVAL
+#define MOUSEKEY_REPEAT_UPDATE_INTERVAL 12 // for 8M
 #endif
 
 
@@ -63,6 +39,8 @@ extern uint8_t mk_time_to_max;
 extern uint8_t mk_wheel_max_speed;
 extern uint8_t mk_wheel_time_to_max;
 
+extern bool rapidfire_key[];
+extern bool rapidfire_mode;
 
 void mousekey_task(void);
 void mousekey_on(uint8_t code);

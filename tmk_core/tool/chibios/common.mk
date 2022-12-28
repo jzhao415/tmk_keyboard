@@ -11,12 +11,20 @@ SRC +=	$(COMMON_DIR)/host.c \
 	$(COMMON_DIR)/debug.c \
 	$(COMMON_DIR)/util.c \
 	$(COMMON_DIR)/hook.c \
+	$(COMMON_DIR)/wait.c \
 	$(COMMON_DIR)/chibios/suspend.c \
 	$(COMMON_DIR)/chibios/printf.c \
 	$(COMMON_DIR)/chibios/timer.c \
 	$(COMMON_DIR)/chibios/bootloader.c
 
 # Option modules
+
+ifeq (yes,$(strip $(STM32_EEPROM_ENABLE)))
+    SRC += $(COMMON_DIR)/chibios/eeprom_stm32.c
+    SRC += $(COMMON_DIR)/chibios/flash_stm32.c
+    SRC += $(COMMON_DIR)/chibios/eeconfig.c
+    OPT_DEFS += -DSTM32_EEPROM_ENABLE
+endif
 
 ifeq (yes,$(strip $(UNIMAP_ENABLE)))
     SRC += $(COMMON_DIR)/unimap.c

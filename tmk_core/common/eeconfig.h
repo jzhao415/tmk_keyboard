@@ -67,7 +67,7 @@ void eeconfig_write_default_layer(uint8_t val);
 uint8_t eeconfig_read_keymap(void);
 void eeconfig_write_keymap(uint8_t val);
 
-#ifdef BACKLIGHT_ENABLE
+#if defined(BACKLIGHT_ENABLE) || defined(NOEEP_BACKLIGHT_ENABLE)
 uint8_t eeconfig_read_backlight(void);
 void eeconfig_write_backlight(uint8_t val);
 #endif

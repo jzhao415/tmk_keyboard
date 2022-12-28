@@ -30,7 +30,10 @@ static inline void del_key_bit(uint8_t code);
 static uint8_t real_mods = 0;
 static uint8_t weak_mods = 0;
 
+// for Win_Lock And shift + (Shift_KEY) = KEY
 uint8_t block_mods = 0;
+uint8_t lock_mods = 0;
+bool has_mods_key = 0;
 
 #ifdef USB_6KRO_ENABLE
 #define RO_ADD(a, b) ((a + b) % KEYBOARD_REPORT_KEYS)
@@ -58,6 +61,7 @@ void send_keyboard_report(void) {
     keyboard_report->mods  = real_mods;
     keyboard_report->mods |= weak_mods;
     keyboard_report->mods &= ~block_mods;
+    keyboard_report->mods &= ~lock_mods;
 #ifndef NO_ACTION_ONESHOT
     if (oneshot_mods) {
 #if (defined(ONESHOT_TIMEOUT) && (ONESHOT_TIMEOUT > 0))
@@ -79,7 +83,12 @@ void send_keyboard_report(void) {
 void add_key(uint8_t key)
 {
 #ifdef NKRO_ENABLE
-    if (keyboard_protocol && keyboard_nkro) {
+    /* make keyboard_protocol compatiable with bt mode.
+       00: Boot Protocol, 1:
+       01: Report Protocol(default)
+       10 or 11: BT Protocol
+       */
+    if (keyboard_protocol == 1 && keyboard_nkro) {
         add_key_bit(key);
         return;
     }
@@ -90,7 +99,7 @@ void add_key(uint8_t key)
 void del_key(uint8_t key)
 {
 #ifdef NKRO_ENABLE
-    if (keyboard_protocol && keyboard_nkro) {
+    if (keyboard_protocol == 1 && keyboard_nkro) {
         del_key_bit(key);
         return;
     }
@@ -101,9 +110,10 @@ void del_key(uint8_t key)
 void clear_keys(void)
 {
     // not clear mods
-    for (int8_t i = 1; i < KEYBOARD_REPORT_SIZE; i++) {
-        keyboard_report->raw[i] = 0;
-    }
+    memset(&keyboard_report->raw[1], 0, KEYBOARD_REPORT_SIZE - 1);
+    //for (int8_t i = 1; i < KEYBOARD_REPORT_SIZE; i++) {
+    //    keyboard_report->raw[i] = 0;
+    //}
 }
 
 
@@ -163,7 +173,7 @@ uint8_t has_anymod(void)
 uint8_t get_first_key(void)
 {
 #ifdef NKRO_ENABLE
-    if (keyboard_protocol && keyboard_nkro) {
+    if (keyboard_protocol == 1 && keyboard_nkro) {
         uint8_t i = 0;
         for (; i < KEYBOARD_REPORT_BITS && !keyboard_report->nkro.bits[i]; i++)
             ;

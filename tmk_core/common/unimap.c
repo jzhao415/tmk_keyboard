@@ -58,3 +58,10 @@ __attribute__ ((weak))
 void action_function(keyrecord_t *record, uint8_t id, uint8_t opt)
 {
 }
+
+#ifdef USER_TASK_ENABLE
+__attribute__ ((weak))
+void user_task(void) 
+{
+}
+#endif

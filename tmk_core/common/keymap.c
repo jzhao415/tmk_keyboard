@@ -26,9 +26,30 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #if defined(__AVR__)
 #include <avr/pgmspace.h>
 #endif
+#ifdef ARDUINO_BL_SUPPORT
+#include <avr/wdt.h>
+#endif
 
 #ifdef BOOTMAGIC_ENABLE
 extern keymap_config_t keymap_config;
+#endif
+
+
+#ifdef ARDUINO_BL_SUPPORT
+void promicro_bootloader_jmp(bool program) {
+    uint16_t *const bootKeyPtr = (uint16_t *)0x0800;
+
+    // Value used by Caterina bootloader use to determine whether to run the
+    // sketch or the bootloader programmer.
+    uint16_t bootKey = program ? 0x7777 : 0;
+
+    *bootKeyPtr = bootKey;
+
+    // setup watchdog timeout
+    wdt_enable(WDTO_60MS);
+
+    while(1) {} // wait for watchdog timer to trigger
+}
 #endif
 
 static action_t keycode_to_action(uint8_t keycode);
@@ -133,7 +154,7 @@ void action_function(keyrecord_t *record, uint8_t id, uint8_t opt)
 }
 
 
-
+#ifndef UNIMAP_ENABLE
 /* translates keycode to action */
 static action_t keycode_to_action(uint8_t keycode)
 {
@@ -142,9 +163,11 @@ static action_t keycode_to_action(uint8_t keycode)
         case KC_LCTRL ... KC_RGUI:
             return (action_t)ACTION_KEY(keycode);
             break;
+#ifndef NO_SYSTEMKEY
         case KC_SYSTEM_POWER ... KC_SYSTEM_WAKE:
             return (action_t)ACTION_USAGE_SYSTEM(KEYCODE2SYSTEM(keycode));
             break;
+#endif
         case KC_AUDIO_MUTE ... KC_WWW_FAVORITES:
             return (action_t)ACTION_USAGE_CONSUMER(KEYCODE2CONSUMER(keycode));
             break;
@@ -165,7 +188,7 @@ static action_t keycode_to_action(uint8_t keycode)
     }
     return (action_t)ACTION_NO;
 }
-
+#endif
 
 
 #ifdef USE_LEGACY_KEYMAP

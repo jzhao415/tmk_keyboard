@@ -44,7 +44,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * ----------------
  * ACT_USAGE(0100): TODO: Not needed?
  * 0100|00| usage(10)     System control(0x80) - General Desktop page(0x01)
- * 0100|01| usage(10)     Consumer control(0x01) - Consumer page(0x0C)
+ * 0100|01| usage(10)     System control(0x80) - General Desktop page(0x01): usage 11|code(8) for Launch shortcut
  * 0100|10| usage(10)     (reserved)
  * 0100|11| usage(10)     (reserved)
  *
@@ -226,10 +226,16 @@ enum mods_codes {
  * Other Keys
  */
 enum usage_pages {
-    PAGE_SYSTEM,
+#ifndef NO_SYSTEMKEY
+	PAGE_CONSUMER,
+    PAGE_SYSTEM
+#else
     PAGE_CONSUMER
+#endif
 };
+#ifndef NO_SYSTEMKEY
 #define ACTION_USAGE_SYSTEM(id)         ACTION(ACT_USAGE, PAGE_SYSTEM<<10 | (id))
+#endif
 #define ACTION_USAGE_CONSUMER(id)       ACTION(ACT_USAGE, PAGE_CONSUMER<<10 | (id))
 #define ACTION_MOUSEKEY(key)            ACTION(ACT_MOUSEKEY, key)
 
