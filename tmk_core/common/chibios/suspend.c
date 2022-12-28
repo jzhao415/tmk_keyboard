@@ -23,6 +23,9 @@ void suspend_power_down(void) {
 
 	// on AVR, this enables the watchdog for 15ms (max), and goes to
 	// SLEEP_MODE_PWR_DOWN
+#ifdef SUSPEND_ACTION
+    suspend_power_down_action();
+#endif
 
 	chThdSleepMilliseconds(17);
 }
@@ -59,7 +62,26 @@ void suspend_wakeup_init(void)
     host_system_send(0);
     host_consumer_send(0);
 #endif /* EXTRAKEY_ENABLE */
+
+#ifdef SUSPEND_ACTION
+    suspend_wakeup_init_action();
+#endif
+
+#ifndef SUSPEND_ACTION
 #ifdef BACKLIGHT_ENABLE
     backlight_init();
 #endif /* BACKLIGHT_ENABLE */
+#endif
 }
+
+#ifdef SUSPEND_ACTION
+__attribute__ ((weak))
+void suspend_power_down_action(void)
+{
+}
+
+__attribute__ ((weak))
+void suspend_wakeup_init_action(void)
+{
+}
+#endif
