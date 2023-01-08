@@ -34,8 +34,9 @@ extern bool has_mods_key;
 void send_keyboard_report(void);
 
 /* key */
-void add_key(uint8_t key);
-void del_key(uint8_t key);
+#define add_key(code) update_key(code,1)
+#define del_key(code) update_key(code,0)
+void update_key(uint8_t key, bool add);
 void clear_keys(void);
 
 /* modifier */

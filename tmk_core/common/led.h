@@ -127,6 +127,8 @@ extern "C" {
 #endif
 
 void led_set(uint8_t usb_led);
+void ledmapu_state_restore(void);
+void keyboard_function_led_set(void);
 
 #ifdef __cplusplus
 }

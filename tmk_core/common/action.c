@@ -29,7 +29,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "hook.h"
 #include "wait.h"
 
-#ifndef NOT_AVR
+#ifdef __AVR__
 #include <avr/wdt.h>
 #endif
 

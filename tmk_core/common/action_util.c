@@ -14,17 +14,16 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include <string.h>
 #include "host.h"
 #include "report.h"
 #include "debug.h"
 #include "action_util.h"
 #include "timer.h"
 
-static inline void add_key_byte(uint8_t code);
-static inline void del_key_byte(uint8_t code);
+static inline void update_key_byte(uint8_t code, bool add);
 #ifdef NKRO_ENABLE
-static inline void add_key_bit(uint8_t code);
-static inline void del_key_bit(uint8_t code);
+static inline void update_key_bit(uint8_t code,bool add);
 #endif
 
 static uint8_t real_mods = 0;
@@ -35,15 +34,6 @@ uint8_t block_mods = 0;
 uint8_t lock_mods = 0;
 bool has_mods_key = 0;
 
-#ifdef USB_6KRO_ENABLE
-#define RO_ADD(a, b) ((a + b) % KEYBOARD_REPORT_KEYS)
-#define RO_SUB(a, b) ((a - b + KEYBOARD_REPORT_KEYS) % KEYBOARD_REPORT_KEYS)
-#define RO_INC(a) RO_ADD(a, 1)
-#define RO_DEC(a) RO_SUB(a, 1)
-static int8_t cb_head = 0;
-static int8_t cb_tail = 0;
-static int8_t cb_count = 0;
-#endif
 
 // TODO: pointer variable is not needed
 //report_keyboard_t keyboard_report = {};
@@ -80,37 +70,27 @@ void send_keyboard_report(void) {
 }
 
 /* key */
-void add_key(uint8_t key)
+void update_key(uint8_t key, bool add)
 {
 #ifdef NKRO_ENABLE
     /* make keyboard_protocol compatiable with bt mode.
-       00: Boot Protocol, 1:
-       01: Report Protocol(default)
-       10 or 11: BT Protocol
+       1<<0: Protocol   0: Boot Protocol, 1:Report Protocol(default)
+       1<<4: NKRO  
+       1<<7: BT 
        */
-    if (keyboard_protocol == 1 && keyboard_nkro) {
-        add_key_bit(key);
+    if ((keyboard_protocol & (1<<7 | 1<<4 | 1<<0)) == (1<<4 | 1<<0)) {
+        update_key_bit(key, add);
         return;
     }
 #endif
-    add_key_byte(key);
-}
-
-void del_key(uint8_t key)
-{
-#ifdef NKRO_ENABLE
-    if (keyboard_protocol == 1 && keyboard_nkro) {
-        del_key_bit(key);
-        return;
-    }
-#endif
-    del_key_byte(key);
+    update_key_byte(key, add);
 }
 
 void clear_keys(void)
 {
+    memset(&keyboard_report->raw[0], 0, KEYBOARD_REPORT_SIZE);
     // not clear mods
-    memset(&keyboard_report->raw[1], 0, KEYBOARD_REPORT_SIZE - 1);
+    //memset(&keyboard_report->raw[1], 0, KEYBOARD_REPORT_SIZE - 1);
     //for (int8_t i = 1; i < KEYBOARD_REPORT_SIZE; i++) {
     //    keyboard_report->raw[i] = 0;
     //}
@@ -149,9 +129,6 @@ void clear_oneshot_mods(void)
 }
 #endif
 
-
-
-
 /*
  * inspect keyboard state
  */
@@ -180,141 +157,36 @@ uint8_t get_first_key(void)
         return i<<3 | biton(keyboard_report->nkro.bits[i]);
     }
 #endif
-#ifdef USB_6KRO_ENABLE
-    uint8_t i = cb_head;
-    do {
-        if (keyboard_report->keys[i] != 0) {
-            break;
-        }
-        i = RO_INC(i);
-    } while (i != cb_tail);
-    return keyboard_report->keys[i];
-#else
     return keyboard_report->keys[0];
-#endif
 }
 
 
 
-/* local functions */
-static inline void add_key_byte(uint8_t code)
+static inline void update_key_byte(uint8_t code, bool add)
 {
-#ifdef USB_6KRO_ENABLE
-    int8_t i = cb_head;
+    int8_t i = KEYBOARD_REPORT_KEYS;
     int8_t empty = -1;
-    if (cb_count) {
-        do {
-            if (keyboard_report->keys[i] == code) {
-                return;
-            }
-            if (empty == -1 && keyboard_report->keys[i] == 0) {
-                empty = i;
-            }
-            i = RO_INC(i);
-        } while (i != cb_tail);
-        if (i == cb_tail) {
-            if (cb_tail == cb_head) {
-                // buffer is full
-                if (empty == -1) {
-                    // pop head when has no empty space
-                    cb_head = RO_INC(cb_head);
-                    cb_count--;
-                }
-                else {
-                    // left shift when has empty space
-                    uint8_t offset = 1;
-                    i = RO_INC(empty);
-                    do {
-                        if (keyboard_report->keys[i] != 0) {
-                            keyboard_report->keys[empty] = keyboard_report->keys[i];
-                            keyboard_report->keys[i] = 0;
-                            empty = RO_INC(empty);
-                        }
-                        else {
-                            offset++;
-                        }
-                        i = RO_INC(i);
-                    } while (i != cb_tail);
-                    cb_tail = RO_SUB(cb_tail, offset);
-                }
-            }
-        }
-    }
-    // add to tail
-    keyboard_report->keys[cb_tail] = code;
-    cb_tail = RO_INC(cb_tail);
-    cb_count++;
-#else
-    int8_t i = 0;
-    int8_t empty = -1;
-    for (; i < KEYBOARD_REPORT_KEYS; i++) {
-        if (keyboard_report->keys[i] == code) {
-            break;
-        }
-        if (empty == -1 && keyboard_report->keys[i] == 0) {
+    for (; i >= 0; i--) {
+        if (keyboard_report->keys[i] == 0) {
             empty = i;
+        } else if (keyboard_report->keys[i] == code) {
+            if (add) break; // already has key, no need to add;
+            else     keyboard_report->keys[i] = 0; //del key.
         }
     }
-    if (i == KEYBOARD_REPORT_KEYS) {
-        if (empty != -1) {
-            keyboard_report->keys[empty] = code;
-        }
+    if (add && i == -1) {
+        keyboard_report->keys[empty] = code;
     }
-#endif
 }
 
-static inline void del_key_byte(uint8_t code)
-{
-#ifdef USB_6KRO_ENABLE
-    uint8_t i = cb_head;
-    if (cb_count) {
-        do {
-            if (keyboard_report->keys[i] == code) {
-                keyboard_report->keys[i] = 0;
-                cb_count--;
-                if (cb_count == 0) {
-                    // reset head and tail
-                    cb_tail = cb_head = 0;
-                }
-                if (i == RO_DEC(cb_tail)) {
-                    // left shift when next to tail
-                    do {
-                        cb_tail = RO_DEC(cb_tail);
-                        if (keyboard_report->keys[RO_DEC(cb_tail)] != 0) {
-                            break;
-                        }
-                    } while (cb_tail != cb_head);
-                }
-                break;
-            }
-            i = RO_INC(i);
-        } while (i != cb_tail);
-    }
-#else
-    for (uint8_t i = 0; i < KEYBOARD_REPORT_KEYS; i++) {
-        if (keyboard_report->keys[i] == code) {
-            keyboard_report->keys[i] = 0;
-        }
-    }
-#endif
-}
-
-#ifdef NKRO_ENABLE
-static inline void add_key_bit(uint8_t code)
+static inline void update_key_bit(uint8_t code, bool add)
 {
     if ((code>>3) < KEYBOARD_REPORT_BITS) {
-        keyboard_report->nkro.bits[code>>3] |= 1<<(code&7);
+        uint8_t *p = &keyboard_report->nkro.bits[code>>3];
+        uint8_t value = 1<<(code&7);
+        add? (*p |= value):(*p &= ~value);
     } else {
-        dprintf("add_key_bit: can't add: %02X\n", code);
+        if (add) dprintf("add_key_bit: can't add: %02X\n", code);
+        else     dprintf("del_key_bit: can't del: %02X\n", code);
     }
 }
-
-static inline void del_key_bit(uint8_t code)
-{
-    if ((code>>3) < KEYBOARD_REPORT_BITS) {
-        keyboard_report->nkro.bits[code>>3] &= ~(1<<(code&7));
-    } else {
-        dprintf("del_key_bit: can't del: %02X\n", code);
-    }
-}
-#endif
