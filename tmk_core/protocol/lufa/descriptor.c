@@ -40,11 +40,18 @@
 #include "report.h"
 #include "descriptor.h"
 
+#ifndef USB_MAX_POWER_CONSUMPTION
+#define USB_MAX_POWER_CONSUMPTION 500
+#endif
 
 /*******************************************************************************
  * HID Report Descriptors
  ******************************************************************************/
-const USB_Descriptor_HIDReport_Datatype_t PROGMEM KeyboardReport[] =
+const USB_Descriptor_HIDReport_Datatype_t
+#ifdef USE_FLASH_DESCRIPTORS
+PROGMEM
+#endif
+KeyboardReport[] =
 {
     HID_RI_USAGE_PAGE(8, 0x01), /* Generic Desktop */
     HID_RI_USAGE(8, 0x06), /* Keyboard */
@@ -84,7 +91,11 @@ const USB_Descriptor_HIDReport_Datatype_t PROGMEM KeyboardReport[] =
 };
 
 #ifdef MOUSE_ENABLE
-const USB_Descriptor_HIDReport_Datatype_t PROGMEM MouseReport[] =
+const USB_Descriptor_HIDReport_Datatype_t
+#ifdef USE_FLASH_DESCRIPTORS
+PROGMEM
+#endif
+MouseReport[] =
 {
     HID_RI_USAGE_PAGE(8, 0x01), /* Generic Desktop */
     HID_RI_USAGE(8, 0x02), /* Mouse */
@@ -134,20 +145,26 @@ const USB_Descriptor_HIDReport_Datatype_t PROGMEM MouseReport[] =
 #endif
 
 #ifdef EXTRAKEY_ENABLE
-const USB_Descriptor_HIDReport_Datatype_t PROGMEM ExtrakeyReport[] =
+const USB_Descriptor_HIDReport_Datatype_t
+#ifdef USE_FLASH_DESCRIPTORS
+PROGMEM
+#endif
+ExtrakeyReport[] =
 {
+#ifndef NO_SYSTEMKEY
     HID_RI_USAGE_PAGE(8, 0x01), /* Generic Desktop */
     HID_RI_USAGE(8, 0x80), /* System Control */
     HID_RI_COLLECTION(8, 0x01), /* Application */
         HID_RI_REPORT_ID(8, REPORT_ID_SYSTEM),
-        HID_RI_LOGICAL_MINIMUM(16, 0x0081),
-        HID_RI_LOGICAL_MAXIMUM(16, 0x00B7),
+        HID_RI_LOGICAL_MINIMUM(16, 0x0001),
+        HID_RI_LOGICAL_MAXIMUM(16, 0x0003),
         HID_RI_USAGE_MINIMUM(16, 0x0081), /* System Power Down */
-        HID_RI_USAGE_MAXIMUM(16, 0x00B7), /* System Display LCD Autoscale */
+        HID_RI_USAGE_MAXIMUM(16, 0x0083), /* System Wake Up */
         HID_RI_REPORT_SIZE(8, 16),
         HID_RI_REPORT_COUNT(8, 1),
         HID_RI_INPUT(8, HID_IOF_DATA | HID_IOF_ARRAY | HID_IOF_ABSOLUTE),
     HID_RI_END_COLLECTION(0),
+#endif
 
     HID_RI_USAGE_PAGE(8, 0x0C), /* Consumer */
     HID_RI_USAGE(8, 0x01), /* Consumer Control */
@@ -165,7 +182,11 @@ const USB_Descriptor_HIDReport_Datatype_t PROGMEM ExtrakeyReport[] =
 #endif
 
 #ifdef CONSOLE_ENABLE
-const USB_Descriptor_HIDReport_Datatype_t PROGMEM ConsoleReport[] =
+const USB_Descriptor_HIDReport_Datatype_t
+#ifdef USE_FLASH_DESCRIPTORS
+PROGMEM
+#endif
+ConsoleReport[] =
 {
     HID_RI_USAGE_PAGE(16, 0xFF31), /* Vendor Page(PJRC Teensy compatible) */
     HID_RI_USAGE(8, 0x74), /* Vendor Usage(PJRC Teensy compatible) */
@@ -187,7 +208,11 @@ const USB_Descriptor_HIDReport_Datatype_t PROGMEM ConsoleReport[] =
 #endif
 
 #ifdef NKRO_ENABLE
-const USB_Descriptor_HIDReport_Datatype_t PROGMEM NKROReport[] =
+const USB_Descriptor_HIDReport_Datatype_t
+#ifdef USE_FLASH_DESCRIPTORS
+PROGMEM
+#endif
+NKROReport[] =
 {
     HID_RI_USAGE_PAGE(8, 0x01), /* Generic Desktop */
     HID_RI_USAGE(8, 0x06), /* Keyboard */
@@ -226,7 +251,11 @@ const USB_Descriptor_HIDReport_Datatype_t PROGMEM NKROReport[] =
 /*******************************************************************************
  * Device Descriptors
  ******************************************************************************/
-const USB_Descriptor_Device_t PROGMEM DeviceDescriptor =
+const USB_Descriptor_Device_t
+#ifdef USE_FLASH_DESCRIPTORS
+PROGMEM
+#endif
+DeviceDescriptor =
 {
     .Header                 = {.Size = sizeof(USB_Descriptor_Device_t), .Type = DTYPE_Device},
 
@@ -252,7 +281,11 @@ const USB_Descriptor_Device_t PROGMEM DeviceDescriptor =
 /*******************************************************************************
  * Configuration Descriptors
  ******************************************************************************/
-const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor =
+const USB_Descriptor_Configuration_t
+#ifdef USE_FLASH_DESCRIPTORS
+PROGMEM
+#endif
+ConfigurationDescriptor =
 {
     .Config =
         {
@@ -266,7 +299,7 @@ const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor =
 
             .ConfigAttributes       = (USB_CONFIG_ATTR_RESERVED | USB_CONFIG_ATTR_REMOTEWAKEUP),
 
-            .MaxPowerConsumption    = USB_CONFIG_POWER_MA(100)
+            .MaxPowerConsumption    = USB_CONFIG_POWER_MA(USB_MAX_POWER_CONSUMPTION)
         },
 
     /*
@@ -306,7 +339,7 @@ const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor =
             .EndpointAddress        = (ENDPOINT_DIR_IN | KEYBOARD_IN_EPNUM),
             .Attributes             = (EP_TYPE_INTERRUPT | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
             .EndpointSize           = KEYBOARD_EPSIZE,
-            .PollingIntervalMS      = 0x0A
+            .PollingIntervalMS      = 0x01
         },
 
     /*
@@ -347,7 +380,7 @@ const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor =
             .EndpointAddress        = (ENDPOINT_DIR_IN | MOUSE_IN_EPNUM),
             .Attributes             = (EP_TYPE_INTERRUPT | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
             .EndpointSize           = MOUSE_EPSIZE,
-            .PollingIntervalMS      = 0x0A
+            .PollingIntervalMS      = 0x01
         },
 #endif
 
@@ -492,14 +525,22 @@ const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor =
 /*******************************************************************************
  * String Descriptors
  ******************************************************************************/
-const USB_Descriptor_String_t PROGMEM LanguageString =
+const USB_Descriptor_String_t
+#ifdef USE_FLASH_DESCRIPTORS
+PROGMEM
+#endif
+LanguageString =
 {
     .Header                 = {.Size = USB_STRING_LEN(1), .Type = DTYPE_String},
 
     .UnicodeString          = {LANGUAGE_ID_ENG}
 };
 
-const USB_Descriptor_String_t PROGMEM ManufacturerString =
+const USB_Descriptor_String_t
+#ifdef USE_FLASH_DESCRIPTORS
+PROGMEM
+#endif
+ManufacturerString =
 {
     /* subtract 1 for null terminator */
     .Header                 = {.Size = USB_STRING_LEN(sizeof(STR(MANUFACTURER))-1), .Type = DTYPE_String},
@@ -507,7 +548,11 @@ const USB_Descriptor_String_t PROGMEM ManufacturerString =
     .UnicodeString          = LSTR(MANUFACTURER)
 };
 
-const USB_Descriptor_String_t PROGMEM ProductString =
+const USB_Descriptor_String_t
+#ifdef USE_FLASH_DESCRIPTORS
+PROGMEM
+#endif
+ProductString =
 {
     /* subtract 1 for null terminator */
     .Header                 = {.Size = USB_STRING_LEN(sizeof(STR(PRODUCT))-1), .Type = DTYPE_String},
@@ -547,15 +592,27 @@ uint16_t CALLBACK_USB_GetDescriptor(const uint16_t wValue,
             {
                 case 0x00:
                     Address = &LanguageString;
+#ifdef USE_FLASH_DESCRIPTORS
                     Size    = pgm_read_byte(&LanguageString.Header.Size);
+#else
+                    Size    = LanguageString.Header.Size;
+#endif
                     break;
                 case 0x01:
                     Address = &ManufacturerString;
+#ifdef USE_FLASH_DESCRIPTORS
                     Size    = pgm_read_byte(&ManufacturerString.Header.Size);
+#else
+                    Size    = ManufacturerString.Header.Size;
+#endif
                     break;
                 case 0x02:
                     Address = &ProductString;
+#ifdef USE_FLASH_DESCRIPTORS
                     Size    = pgm_read_byte(&ProductString.Header.Size);
+#else
+                    Size    = ProductString.Header.Size;
+#endif
                     break;
             }
             break;

@@ -426,7 +426,9 @@ static void send_keyboard(report_keyboard_t *report)
 
     /* Select the Keyboard Report Endpoint */
 #ifdef NKRO_ENABLE
-    if (keyboard_protocol && keyboard_nkro) {
+    //if (keyboard_protocol && keyboard_nkro) {
+	/* keyboard_protocol& (1<<4): NKRO */
+    if ((keyboard_protocol & (1<<4 | 1<<0)) == (1<<4 | 1<<0)) {
         /* Report protocol - NKRO */
         Endpoint_SelectEndpoint(NKRO_IN_EPNUM);
 
@@ -482,6 +484,7 @@ static void send_mouse(report_mouse_t *report)
 
 static void send_system(uint16_t data)
 {
+#ifndef NO_SYSTEMKEY
     uint8_t timeout = 255;
 
     if (USB_DeviceState != DEVICE_STATE_Configured)
@@ -489,7 +492,7 @@ static void send_system(uint16_t data)
 
     report_extra_t r = {
         .report_id = REPORT_ID_SYSTEM,
-        .usage = data
+        .usage = data - SYSTEM_POWER_DOWN + 1
     };
     Endpoint_SelectEndpoint(EXTRAKEY_IN_EPNUM);
 
@@ -499,6 +502,7 @@ static void send_system(uint16_t data)
 
     Endpoint_Write_Stream_LE(&r, sizeof(report_extra_t), NULL);
     Endpoint_ClearIN();
+#endif
 }
 
 static void send_consumer(uint16_t data)
