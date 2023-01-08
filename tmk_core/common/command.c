@@ -72,6 +72,7 @@ command_state_t command_state = ONESHOT;
 
 bool command_proc(uint8_t code)
 {
+    if (has_mods_key) return false;
     switch (command_state) {
         case ONESHOT:
             if (!IS_COMMAND())
@@ -101,6 +102,7 @@ bool command_proc(uint8_t code)
 bool command_extra(uint8_t code) __attribute__ ((weak));
 bool command_extra(uint8_t code)
 {
+    clear_keyboard(); 
     (void)code;
     return false;
 }
@@ -363,7 +365,11 @@ static bool command_common(uint8_t code)
             print_val_hex8(keyboard_protocol);
             print_val_hex8(keyboard_idle);
 #ifdef NKRO_ENABLE
+    #ifdef __AVR__
+            print_val_hex8(keyboard_protocol & (1<<4));
+    #else
             print_val_hex8(keyboard_nkro);
+    #endif
 #endif
             print_val_hex32(timer_read32());
 
@@ -384,20 +390,27 @@ static bool command_common(uint8_t code)
 #endif //no debug
 #ifdef NKRO_ENABLE
         case KC_N:
-            clear_keyboard(); //Prevents stuck keys.
-            //if (host_get_driver() == &lufa_driver) { //Only USB supports NKRO.
-                keyboard_nkro = !keyboard_nkro;
-                if (keyboard_nkro) {
+            hook_nkro_change();
+            //clear_keyboard(); //Prevents stuck keys.
+
+#ifdef __AVR__
+            keyboard_protocol ^= (1<<4);
+            if (keyboard_protocol & (1<<4)) {
+#else
+            keyboard_nkro = !keyboard_nkro;
+            if (keyboard_nkro) {
+#endif
                     print("NKRO: on\n");
                 } else {
                     print("NKRO: off\n");
                 }
             //}
-            hook_nkro_change(keyboard_nkro);
             break;
 #endif
         //case KC_ESC:
         //case KC_GRV:
+//#ifndef COMMAND_NO_DEFAULT_LAYER
+#if 0
         case KC_1 ... KC_0:
         case KC_F1 ... KC_F10:
             ;
@@ -406,6 +419,7 @@ static bool command_common(uint8_t code)
             else if (code >= KC_F1 && code < KC_F8) target_layer = code - KC_F1 + 1;
             switch_default_layer(target_layer);
             break;
+#endif
         default:
             print("?");
             return false;

@@ -49,7 +49,4 @@ __attribute__((weak))
 void hook_bootmagic(void) {}
 
 __attribute__((weak))
-void hook_nkro_change(uint8_t kbd_nkro) 
-{
-    (void)kbd_nkro;
-}
+void hook_nkro_change(void) {}

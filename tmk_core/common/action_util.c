@@ -75,10 +75,14 @@ void update_key(uint8_t key, bool add)
 #ifdef NKRO_ENABLE
     /* make keyboard_protocol compatiable with bt mode.
        1<<0: Protocol   0: Boot Protocol, 1:Report Protocol(default)
-       1<<4: NKRO  
+       1<<4: NKRO  //not ready for chibios
        1<<7: BT 
        */
+#ifdef __AVR__
     if ((keyboard_protocol & (1<<7 | 1<<4 | 1<<0)) == (1<<4 | 1<<0)) {
+#else 
+    if ((keyboard_protocol & (1<<7 | 1<<0)) == (1<<0) && keyboard_nkro) {
+#endif
         update_key_bit(key, add);
         return;
     }
