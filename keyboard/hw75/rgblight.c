@@ -346,7 +346,7 @@ void rgblight_set(void)
         led[83] = indicator_ws2812_color;
         led[84] = indicator_ws2812_color;
     }
-    #if 1 //reduce the brightness of ws2812
+    #if 0 //reduce the brightness of ws2812
     uint8_t *p = &led[0];
 
     for (uint16_t i=0;i<(SRGBLED_NUM-3)*3;i++, *p++) {
